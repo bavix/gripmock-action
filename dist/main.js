@@ -181,6 +181,16 @@ function sha256File(filePath) {
   });
 }
 
+function sanitizeVersion(version) {
+  const v = String(version || "").trim();
+  // Allow only alphanumerics, dot, underscore, and dash (e.g., "1.2.3", "1.2.3-beta_1").
+  // This prevents path separators, spaces, and other potentially dangerous characters.
+  if (!v || !/^[0-9A-Za-z._-]+$/.test(v)) {
+    throw new Error(`Invalid version string: "${v}"`);
+  }
+  return v;
+}
+
 async function resolveVersion(versionInput, token) {
   const normalized = String(versionInput || "latest").trim();
   if (normalized === "" || normalized.toLowerCase() === "latest") {
@@ -189,9 +199,9 @@ async function resolveVersion(versionInput, token) {
     if (!tag) {
       throw new Error("Could not resolve latest release tag");
     }
-    return tag.replace(/^v/, "");
+    return sanitizeVersion(tag.replace(/^v/, ""));
   }
-  return normalized.replace(/^v/, "");
+  return sanitizeVersion(normalized.replace(/^v/, ""));
 }
 
 function extractArchive(archivePath, destination) {
