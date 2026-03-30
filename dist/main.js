@@ -10,6 +10,7 @@ const { spawn, spawnSync } = require("node:child_process");
 
 const OWNER = "bavix";
 const REPO = "gripmock";
+const GITHUB_TOKEN_EXPR_RE = /^\$\{\{\s*github\.token\s*\}\}$/i;
 
 function input(name, fallback = "") {
   const key = `INPUT_${name.replace(/ /g, "_").replace(/-/g, "_").toUpperCase()}`;
@@ -147,6 +148,23 @@ async function fetchJson(url, token) {
   return res.json();
 }
 
+async function resolveLatestTagViaRedirect() {
+  const latestUrl = `https://github.com/${OWNER}/${REPO}/releases/latest`;
+  const res = await fetch(latestUrl, {
+    method: "GET",
+    redirect: "manual",
+    headers: { "User-Agent": "gripmock-action" },
+  });
+
+  const location = res.headers.get("location") || "";
+  const match = location.match(/\/releases\/tag\/(v[^/?#]+)/i);
+  if (!match) {
+    return "";
+  }
+
+  return match[1].trim();
+}
+
 async function downloadFile(url, destination, token) {
   const headers = { "User-Agent": "gripmock-action" };
   if (token) {
@@ -184,6 +202,12 @@ function sha256File(filePath) {
 async function resolveVersion(versionInput, token) {
   const normalized = String(versionInput || "latest").trim();
   if (normalized === "" || normalized.toLowerCase() === "latest") {
+    const redirectTag = await resolveLatestTagViaRedirect();
+    if (redirectTag) {
+      return redirectTag.replace(/^v/, "");
+    }
+
+    warn("Could not resolve latest version via redirect, falling back to GitHub API");
     const release = await fetchJson(`https://api.github.com/repos/${OWNER}/${REPO}/releases/latest`, token);
     const tag = String(release.tag_name || "").trim();
     if (!tag) {
@@ -348,6 +372,24 @@ function buildArgs({ source, sources, stub, imports, plugins, extraArgs }) {
   return args;
 }
 
+function resolveToken() {
+  const rawInput = input("github-token", "").trim();
+  if (rawInput && !GITHUB_TOKEN_EXPR_RE.test(rawInput)) {
+    return rawInput;
+  }
+
+  const envToken = String(process.env.GITHUB_TOKEN || process.env.GH_TOKEN || "").trim();
+  if (envToken) {
+    return envToken;
+  }
+
+  if (rawInput && GITHUB_TOKEN_EXPR_RE.test(rawInput)) {
+    warn("Input github-token looks like an unevaluated expression; pass with: github-token: ${{ github.token }}");
+  }
+
+  return "";
+}
+
 async function ensureBinary(version, token) {
   const platform = mapPlatform();
   const arch = mapArch();
@@ -407,7 +449,7 @@ async function ensureBinary(version, token) {
 
 async function run() {
   const versionInput = input("version", "latest");
-  const token = input("github-token", "");
+  const token = resolveToken();
 
   const source = input("source", "").trim();
   const sources = listInput("sources");

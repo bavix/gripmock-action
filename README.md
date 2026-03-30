@@ -48,7 +48,7 @@ jobs:
 | `plugins` | `""` | Plugin paths (`.so`), one per line (`--plugins`) |
 | `extra-args` | `""` | Additional raw args, one per line |
 | `version` | `latest` | GripMock version (`latest`, `3.7.1`, `v3.7.1`) |
-| `github-token` | `${{ github.token }}` | Token used for release API requests |
+| `github-token` | `""` | Optional token for GitHub API fallback; pass `${{ github.token }}` explicitly |
 | `grpc-host` | `127.0.0.1` | `GRPC_HOST` env |
 | `grpc-port` | `4770` | `GRPC_PORT` env |
 | `http-host` | `127.0.0.1` | `HTTP_HOST` env |
@@ -117,6 +117,7 @@ jobs:
 ## Notes
 
 - Use pinned `version` in CI for reproducibility.
+- For authenticated GitHub API fallback, pass `github-token: ${{ github.token }}`.
 - `extra-args` is parsed line-by-line; each line is one CLI argument.
 - If startup fails, the action prints the last part of the log file.
 - Node runtime is `node24` (requires GitHub Actions Runner `v2.327.1+`).
