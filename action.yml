@@ -1,0 +1,110 @@
+name: "GripMock Action"
+description: "Run the fastest and most reliable gRPC mock server in GitHub Actions"
+author: "bavix"
+
+inputs:
+  source:
+    description: "Single source (.proto/.pb/bsr/grpc URL)"
+    required: false
+    default: ""
+  sources:
+    description: "Additional sources, one per line"
+    required: false
+    default: ""
+  stub:
+    description: "Path to stubs directory/file"
+    required: false
+    default: ""
+  imports:
+    description: "Proto imports, one per line"
+    required: false
+    default: ""
+  plugins:
+    description: "Plugin paths (.so), one per line"
+    required: false
+    default: ""
+  extra-args:
+    description: "Additional CLI args, one per line"
+    required: false
+    default: ""
+  version:
+    description: "GripMock version: latest, 3.x.x, or v3.x.x"
+    required: false
+    default: "latest"
+  github-token:
+    description: "GitHub token for release API"
+    required: false
+    default: "${{ github.token }}"
+  grpc-host:
+    description: "GRPC_HOST"
+    required: false
+    default: "127.0.0.1"
+  grpc-port:
+    description: "GRPC_PORT"
+    required: false
+    default: "4770"
+  http-host:
+    description: "HTTP_HOST"
+    required: false
+    default: "127.0.0.1"
+  http-port:
+    description: "HTTP_PORT"
+    required: false
+    default: "4771"
+  log-level:
+    description: "LOG_LEVEL"
+    required: false
+    default: "info"
+  env:
+    description: "Additional env vars, one KEY=VALUE per line"
+    required: false
+    default: ""
+  wait:
+    description: "Wait until readiness endpoint is up"
+    required: false
+    default: "true"
+  wait-timeout:
+    description: "Wait timeout (e.g. 30s, 1m, 5000ms)"
+    required: false
+    default: "30s"
+  wait-interval:
+    description: "Readiness polling interval (e.g. 500ms, 1s)"
+    required: false
+    default: "500ms"
+  auto-stop:
+    description: "Stop GripMock in post step"
+    required: false
+    default: "true"
+  log-file:
+    description: "Path for GripMock stdout/stderr logs"
+    required: false
+    default: ""
+
+outputs:
+  version:
+    description: "Resolved GripMock version"
+  binary-path:
+    description: "Path to the downloaded gripmock binary"
+  pid:
+    description: "GripMock process id"
+  grpc-addr:
+    description: "gRPC address"
+  http-addr:
+    description: "HTTP address"
+  grpc-port:
+    description: "gRPC port"
+  http-port:
+    description: "HTTP port"
+  readiness-url:
+    description: "Readiness endpoint URL"
+  log-file:
+    description: "Path to log file"
+
+runs:
+  using: "node24"
+  main: "dist/main.js"
+  post: "dist/post.js"
+
+branding:
+  icon: "server"
+  color: "blue"

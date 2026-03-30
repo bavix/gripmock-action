@@ -1,0 +1,139 @@
+name: release-smoke
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: ${{ matrix.case.name }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        case:
+          - name: greeter-proto
+            source: testdata/greeter/greeter.proto
+            stub: testdata/greeter/stubs
+            expected_service: helloworld.Greeter
+            needs_upstream: false
+            verify_local_stub: true
+            verify_upstream_call: false
+          - name: greeter-pb
+            source: testdata/greeter/greeter.pb
+            stub: testdata/greeter/stubs
+            expected_service: helloworld.Greeter
+            needs_upstream: false
+            verify_local_stub: true
+            verify_upstream_call: false
+          - name: eliza
+            source: buf.build/connectrpc/eliza
+            stub: ""
+            expected_service: connectrpc.eliza.v1.ElizaService
+            needs_upstream: false
+            verify_local_stub: false
+            verify_upstream_call: false
+          - name: reflection-grpc
+            source: grpc://127.0.0.1:50051
+            stub: ""
+            expected_service: helloworld.Greeter
+            needs_upstream: true
+            verify_local_stub: false
+            verify_upstream_call: false
+          - name: reflection-proxy
+            source: grpc+proxy://127.0.0.1:50051
+            stub: ""
+            expected_service: helloworld.Greeter
+            needs_upstream: true
+            verify_local_stub: false
+            verify_upstream_call: true
+          - name: reflection-replay
+            source: grpc+replay://127.0.0.1:50051
+            stub: ""
+            expected_service: helloworld.Greeter
+            needs_upstream: true
+            verify_local_stub: false
+            verify_upstream_call: true
+          - name: reflection-capture
+            source: grpc+capture://127.0.0.1:50051
+            stub: ""
+            expected_service: helloworld.Greeter
+            needs_upstream: true
+            verify_local_stub: false
+            verify_upstream_call: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+
+      - name: Install grpcurl
+        run: go install github.com/fullstorydev/grpcurl/cmd/grpcurl@latest
+
+      - name: Start upstream greeter server
+        if: matrix.case.needs_upstream
+        run: |
+          docker run -d --rm --name greeter-upstream -p 50051:50051 bavix/greeter-server:latest
+          for i in $(seq 1 40); do
+            if "$HOME/go/bin/grpcurl" -plaintext 127.0.0.1:50051 list >/tmp/upstream-services.txt 2>/dev/null; then
+              cat /tmp/upstream-services.txt
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs greeter-upstream || true
+          echo "upstream greeter server did not become ready" >&2
+          exit 1
+
+      - name: Start GripMock Action
+        id: gripmock
+        uses: ./
+        with:
+          source: ${{ matrix.case.source }}
+          stub: ${{ matrix.case.stub }}
+          version: latest
+          wait: true
+          wait-timeout: 60s
+
+      - name: Verify action outputs
+        run: |
+          test -n "${{ steps.gripmock.outputs.pid }}"
+          test -n "${{ steps.gripmock.outputs.version }}"
+          test -n "${{ steps.gripmock.outputs.grpc-addr }}"
+          test -n "${{ steps.gripmock.outputs.http-addr }}"
+
+      - name: Verify readiness endpoint
+        run: |
+          curl -fsS "${{ steps.gripmock.outputs.readiness-url }}" > /tmp/readiness.json
+          cat /tmp/readiness.json
+
+      - name: Verify gRPC services list
+        run: |
+          "$HOME/go/bin/grpcurl" -plaintext "${{ steps.gripmock.outputs.grpc-addr }}" list > /tmp/services.txt
+          cat /tmp/services.txt
+          grep -Fx "${{ matrix.case.expected_service }}" /tmp/services.txt
+
+      - name: Verify greeter stub response
+        if: matrix.case.verify_local_stub
+        run: |
+          "$HOME/go/bin/grpcurl" -plaintext -d '{"name":"CI"}' "${{ steps.gripmock.outputs.grpc-addr }}" helloworld.Greeter/SayHello > /tmp/greeter.json
+          cat /tmp/greeter.json
+          grep -F '"message": "Hello CI"' /tmp/greeter.json
+
+      - name: Verify upstream call for grpc+ modes
+        if: matrix.case.verify_upstream_call
+        run: |
+          "$HOME/go/bin/grpcurl" -plaintext -d '{"name":"CI"}' "${{ steps.gripmock.outputs.grpc-addr }}" helloworld.Greeter/SayHello > /tmp/upstream-call.json
+          cat /tmp/upstream-call.json
+          grep -E '"(message|text)":' /tmp/upstream-call.json
+
+      - name: Print upstream logs
+        if: always() && matrix.case.needs_upstream
+        run: docker logs greeter-upstream || true

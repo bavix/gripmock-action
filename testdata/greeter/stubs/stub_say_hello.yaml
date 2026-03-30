@@ -1,0 +1,8 @@
+- service: helloworld.Greeter
+  method: SayHello
+  input:
+    matches:
+      name: ".+"
+  output:
+    data:
+      message: "Hello CI"

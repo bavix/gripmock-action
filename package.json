@@ -1,0 +1,15 @@
+{
+  "name": "gripmock-action",
+  "version": "1.0.0",
+  "private": true,
+  "description": "GitHub Action to run GripMock",
+  "license": "MIT",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "check": "node --check src/main.js && node --check src/post.js && node --check dist/main.js && node --check dist/post.js",
+    "all": "npm run build && npm run check"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}
