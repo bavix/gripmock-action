@@ -207,7 +207,13 @@ async function resolveVersion(versionInput, token) {
       return redirectTag.replace(/^v/, "");
     }
 
-    warn("Could not resolve latest version via redirect, falling back to GitHub API");
+    if (!token) {
+      throw new Error(
+        "Could not resolve latest version via redirect and no github-token provided. Pass a pinned version (recommended) or set github-token: ${{ github.token }}",
+      );
+    }
+
+    warn("Could not resolve latest version via redirect, falling back to authenticated GitHub API");
     const release = await fetchJson(`https://api.github.com/repos/${OWNER}/${REPO}/releases/latest`, token);
     const tag = String(release.tag_name || "").trim();
     if (!tag) {
