@@ -1,0 +1,42 @@
+name: Update action version aliases on release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  retag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Update vX and vX.Y tags
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          TAG="${{ github.event.release.tag_name }}"
+          echo "Release tag: $TAG"
+
+          if [[ ! "$TAG" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+            echo "Tag is not strict semver (vX.Y.Z): $TAG"
+            exit 1
+          fi
+
+          MAJOR="v${BASH_REMATCH[1]}"
+          MINOR="v${BASH_REMATCH[1]}.${BASH_REMATCH[2]}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git tag -fa "$MAJOR" -m "Update $MAJOR -> $TAG" "$TAG"
+          git tag -fa "$MINOR" -m "Update $MINOR -> $TAG" "$TAG"
+
+          git push origin "refs/tags/$MAJOR" --force
+          git push origin "refs/tags/$MINOR" --force
